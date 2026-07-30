@@ -37,11 +37,12 @@ write_config() {
     python3 - "$BOT_TOKEN" "$ADMIN_ID" "$SECRET_PATH" "$port" << 'PYEOF'
 import sys
 B=sys.argv[1]; A=sys.argv[2]; S=sys.argv[3]; P=sys.argv[4]
-P1="تو یه دستیار هوشمندی. لیست SOPهای تعریف شده:\n{sops}\n\n"
-P2="پیام کاربر:\n{message}\n\n"
-P3="کدام SOP مناسب این سواله؟ فقط اسم دقیق SOP رو بنویس. "
-P4="اگر هیچکدوم مناسب نبود، بنویس: none"
-AI=(P1+P2+P3+P4)
+AI = (
+    "تو یه دستیار هوشمندی. لیست SOPهای تعریف شده:\n{sops}\n\n"
+    "پیام کاربر:\n{message}\n\n"
+    "کدام SOP مناسب این سواله؟ فقط اسم دقیق SOP رو بنویس. "
+    "اگر هیچکدوم مناسب نبود، بنویس: none"
+)
 cfg=f"""# -*- coding: utf-8 -*-
 BOT_TOKEN = "{B}"
 ADMIN_ID = {A}
@@ -185,13 +186,11 @@ main_install() {
 }
 
 install_direct_ip() {
-    # Write config with port 80
     write_config "80"
 
     FINAL_URL="http://${SERVER_IP}${SECRET_PATH}"
     echo "$FINAL_URL" > "$INSTALL_DIR/url.txt"
 
-    # Kill anything on port 80
     fuser -k 80/tcp 2>/dev/null || true
     sleep 1
 
@@ -220,7 +219,6 @@ EOF
 }
 
 install_subdomain() {
-    # Write config with port 5000 (internal)
     write_config "5000"
 
     FINAL_URL="https://${DOMAIN}${SECRET_PATH}"
