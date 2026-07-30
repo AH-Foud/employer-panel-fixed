@@ -82,7 +82,6 @@ AI_PROMPT = {repr(AI_PROMPT)}
 """
 with open('/opt/employer-panel/config.py','w',encoding='utf-8') as f:
     f.write(cfg)
-os._exit(0)
 PYEOF
     python3 /tmp/_wc.py "$BOT_TOKEN" "$ADMIN_ID" "$SECRET_PATH"
     rm -f /tmp/_wc.py
