@@ -1,5 +1,5 @@
 #!/bin/bash
-# Employer Panel - Bale Bot + Web Dashboard Installer v4
+# Employer Panel - Bale Bot + Web Dashboard Installer v5
 # Run: bash <(curl -s https://raw.githubusercontent.com/AH-Foud/employer-panel-fixed/main/install.sh)
 
 set -e
@@ -32,20 +32,51 @@ verify_bot() {
     return 1
 }
 
+write_config() {
+    local port="$1"
+    python3 - "$BOT_TOKEN" "$ADMIN_ID" "$SECRET_PATH" "$port" << 'PYEOF'
+import sys
+B=sys.argv[1]; A=sys.argv[2]; S=sys.argv[3]; P=sys.argv[4]
+P1="تو یه دستیار هوشمندی. لیست SOPهای تعریف شده:\n{sops}\n\n"
+P2="پیام کاربر:\n{message}\n\n"
+P3="کدام SOP مناسب این سواله؟ فقط اسم دقیق SOP رو بنویس. "
+P4="اگر هیچکدوم مناسب نبود، بنویس: none"
+AI=(P1+P2+P3+P4)
+cfg=f"""# -*- coding: utf-8 -*-
+BOT_TOKEN = "{B}"
+ADMIN_ID = {A}
+BASE_URL = f"https://tapi.bale.ai/bot{{BOT_TOKEN}}"
+DATA_DIR = "data"
+DATABASE_PATH = f"{{DATA_DIR}}/database.db"
+WEB_HOST = "0.0.0.0"
+WEB_PORT = {P}
+SECRET_PATH = "{S}"
+SYNC_BASE_URL = ""
+SYNC_API_KEY = ""
+AI_BASE_URL = ""
+AI_API_KEY = ""
+AI_MODEL = "gpt-4o-mini"
+VOICE_DIR = f"{{DATA_DIR}}/voices"
+AI_PROMPT = {repr(AI)}
+"""
+with open('/opt/employer-panel/config.py','w',encoding='utf-8') as f:
+    f.write(cfg)
+PYEOF
+}
+
 prompt_config() {
     echo ""
     echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║       Bot Configuration              ║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "You need a Bale bot token and your admin ID."
-    echo -e "Get token from ${YELLOW}@BotFather${NC} in Bale."
+    echo -e "Get BOT_TOKEN from ${YELLOW}@BotFather${NC} in Bale."
     echo ""
     while true; do
-        read -rp $'\033[33mBOT_TOKEN (from BotFather): \033[0m' BOT_TOKEN
+        read -rp $'\033[33mBOT_TOKEN: \033[0m' BOT_TOKEN
         BOT_TOKEN=$(echo "$BOT_TOKEN" | tr -d ' ')
         [ -z "$BOT_TOKEN" ] && { err "Token cannot be empty"; continue; }
-        echo -e "${CYAN}Verifying token...${NC}"
+        echo -e "${CYAN}Verifying...${NC}"
         verify_bot "$BOT_TOKEN" && break || err "Invalid token."
     done
     while true; do
@@ -55,42 +86,9 @@ prompt_config() {
         ok "Admin ID: $ADMIN_ID"
         break
     done
-    SECRET=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "admin")
+    SECRET=$(python3 -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || echo "admin123")
     SECRET_PATH="/${SECRET}"
-
-    # Write config using actual UTF-8 Persian text
-    python3 - "$BOT_TOKEN" "$ADMIN_ID" "$SECRET_PATH" << 'PYEOF'
-import sys
-BOT_TOKEN=sys.argv[1]
-ADMIN_ID=sys.argv[2]
-SECRET=sys.argv[3]
-AI_PROMPT = (
-    "تو یه دستیار هوشمندی. لیست SOPهای تعریف شده:\n{sops}\n\n"
-    "پیام کاربر:\n{message}\n\n"
-    "کدام SOP مناسب این سواله؟ فقط اسم دقیق SOP رو بنویس. "
-    "اگر هیچکدوم مناسب نبود، بنویس: none"
-)
-cfg=f"""# -*- coding: utf-8 -*-
-BOT_TOKEN = "{BOT_TOKEN}"
-ADMIN_ID = {ADMIN_ID}
-BASE_URL = f"https://tapi.bale.ai/bot{{BOT_TOKEN}}"
-DATA_DIR = "data"
-DATABASE_PATH = f"{{DATA_DIR}}/database.db"
-WEB_HOST = "0.0.0.0"
-WEB_PORT = 5000
-SECRET_PATH = "{SECRET}"
-SYNC_BASE_URL = ""
-SYNC_API_KEY = ""
-AI_BASE_URL = ""
-AI_API_KEY = ""
-AI_MODEL = "gpt-4o-mini"
-VOICE_DIR = f"{{DATA_DIR}}/voices"
-AI_PROMPT = {repr(AI_PROMPT)}
-"""
-with open('/opt/employer-panel/config.py','w',encoding='utf-8') as f:
-    f.write(cfg)
-PYEOF
-    ok "Config written"
+    ok "Config ready"
 }
 
 create_karpanel_cmd() {
@@ -112,7 +110,7 @@ show_menu(){
   2)systemctl restart "$SERVICE"&&ok "Restarted";sleep 1;show_menu;;
   3)cd "$DIR"&&git stash&&git pull origin main&&pip3 install -r requirements.txt --break-system-packages 2>/dev/null;sed -i 's/"__BASE_PATH__"/__BASE_PATH__/g' web_server.py 2>/dev/null;systemctl restart "$SERVICE"&&ok "Updated";sleep 1;show_menu;;
   4)journalctl -u "$SERVICE" -n 40 --no-pager;read -rp "Enter...";show_menu;;
-  5)systemctl stop "$SERVICE";systemctl disable "$SERVICE";rm -f /etc/systemd/system/$SERVICE.service /etc/nginx/sites-enabled/employer-panel /etc/nginx/sites-available/employer-panel;systemctl reload nginx 2>/dev/null;rm -rf "$DIR";rm -f "$0";echo "Uninstalled";exit 0;;
+  5)systemctl stop "$SERVICE";systemctl disable "$SERVICE";rm -f /etc/systemd/system/$SERVICE.service;rm -f /etc/nginx/sites-enabled/employer-panel /etc/nginx/sites-available/employer-panel;systemctl reload nginx 2>/dev/null;rm -rf "$DIR";rm -f "$0";echo "Uninstalled";exit 0;;
   0)exit 0;;
   *)show_menu;;
  esac
@@ -125,14 +123,14 @@ KARPANEL_SCRIPT
 
 main_install() {
     echo -e "${CYAN}╔══════════════════════════╗${NC}"
-    echo -e "${CYAN}║ Employer Panel Installer v4 ║${NC}"
+    echo -e "${CYAN}║ Employer Panel Installer v5 ║${NC}"
     echo -e "${CYAN}╚══════════════════════════╝${NC}"
-    [[ $EUID -ne 0 ]] && { err "Run as root: sudo bash install.sh"; exit 1; }
+    [[ $EUID -ne 0 ]] && { err "Run as root"; exit 1; }
 
     echo -e "${BLUE}────────────────────────────────────${NC}"
     echo -e "${BLUE} Installation method:${NC}"
-    echo -e "  ${GREEN}1)${NC} Direct IP — http://IP:5000/secret"
-    echo -e "  ${GREEN}2)${NC} Subdomain — https://domain/secret (SSL+Nginx)"
+    echo -e "  ${GREEN}1)${NC} Direct IP  — http://IP/secret (port 80)"
+    echo -e "  ${GREEN}2)${NC} Subdomain  — https://domain/secret (SSL+Nginx)"
     echo -e "${BLUE}────────────────────────────────────${NC}"
     read -rp $'\033[33mChoice (1 or 2): \033[0m' INSTALL_METHOD
     [[ "$INSTALL_METHOD" != "1" && "$INSTALL_METHOD" != "2" ]] && { err "Invalid"; exit 1; }
@@ -143,8 +141,8 @@ main_install() {
         read -rp $'\033[33mSubdomain (e.g. bot.example.com): \033[0m' DOMAIN
         [ -z "$DOMAIN" ] && { err "Domain required"; exit 1; }
         echo -e "${CYAN}Server IP: ${GREEN}$SERVER_IP${NC}"
-        echo -e "${YELLOW}⚠️  Make sure A record for ${DOMAIN} points to ${SERVER_IP}${NC}"
-        read -rp "Press Enter to continue..."
+        echo -e "${YELLOW}⚠️  Set A record: ${DOMAIN} → ${SERVER_IP}${NC}"
+        read -rp "Press Enter..."
     fi
 
     info "Installing packages..."
@@ -153,9 +151,9 @@ main_install() {
     info "Cloning project..."
     rm -rf "$INSTALL_DIR" 2>/dev/null || true
     git clone --depth 1 "$GIT_REPO" "$INSTALL_DIR" || { err "Clone failed"; exit 1; }
-    ok "Cloned to $INSTALL_DIR"
+    ok "Cloned"
 
-    mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/data/voices"
+    mkdir -p "$INSTALL_DIR/data/voices"
 
     info "Applying __BASE_PATH__ fix..."
     cd "$INSTALL_DIR"
@@ -169,7 +167,11 @@ main_install() {
     info "Init database..."
     python3 -c "import database; database.init_db(); print('OK')" 2>/dev/null || warn "DB skipped"
 
-    [[ "$INSTALL_METHOD" == "1" ]] && install_direct_ip || install_subdomain
+    if [[ "$INSTALL_METHOD" == "1" ]]; then
+        install_direct_ip
+    else
+        install_subdomain
+    fi
 
     create_karpanel_cmd
 
@@ -183,8 +185,16 @@ main_install() {
 }
 
 install_direct_ip() {
-    FINAL_URL="http://${SERVER_IP}:5000${SECRET_PATH}"
+    # Write config with port 80
+    write_config "80"
+
+    FINAL_URL="http://${SERVER_IP}${SECRET_PATH}"
     echo "$FINAL_URL" > "$INSTALL_DIR/url.txt"
+
+    # Kill anything on port 80
+    fuser -k 80/tcp 2>/dev/null || true
+    sleep 1
+
     info "Creating systemd service..."
     cat > /etc/systemd/system/$SERVICE_NAME.service <<EOF
 [Unit]
@@ -195,6 +205,7 @@ Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$(which python3) $INSTALL_DIR/run.py
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=always
 RestartSec=5
 [Install]
@@ -203,17 +214,22 @@ EOF
     systemctl daemon-reload
     systemctl enable $SERVICE_NAME
     systemctl restart $SERVICE_NAME
-    ufw allow 5000/tcp 2>/dev/null || true
-    sleep 2
-    systemctl is-active --quiet $SERVICE_NAME && ok "Running on port 5000" || warn "Check: journalctl -u $SERVICE_NAME -n 20"
+    ufw allow 80/tcp 2>/dev/null || true
+    sleep 3
+    systemctl is-active --quiet $SERVICE_NAME && ok "Running on port 80" || warn "Check: journalctl -u $SERVICE_NAME -n 20"
 }
 
 install_subdomain() {
+    # Write config with port 5000 (internal)
+    write_config "5000"
+
     FINAL_URL="https://${DOMAIN}${SECRET_PATH}"
     echo "$FINAL_URL" > "$INSTALL_DIR/url.txt"
+
     info "Checking DNS..."
     DOMAIN_IP=$(dig +short "$DOMAIN" 2>/dev/null | tail -1)
-    [ -z "$DOMAIN_IP" ] && warn "Cannot resolve $DOMAIN" || { [[ "$DOMAIN_IP" != "$SERVER_IP" ]] && warn "$DOMAIN → $DOMAIN_IP (not $SERVER_IP)"; }
+    [ -z "$DOMAIN_IP" ] && warn "Cannot resolve $DOMAIN"
+    [[ -n "$DOMAIN_IP" && "$DOMAIN_IP" != "$SERVER_IP" ]] && warn "$DOMAIN → $DOMAIN_IP (not $SERVER_IP)"
 
     systemctl stop nginx 2>/dev/null || true
     fuser -k 80/tcp 2>/dev/null || true; sleep 1
@@ -231,11 +247,17 @@ install_subdomain() {
     else
         warn "Retrying..."
         sleep 2; fuser -k 80/tcp 2>/dev/null || true; sleep 1
-        ~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --httpport 80 --force 2>/dev/null || { warn "SSL failed. Using HTTP."; install_direct_ip; return; }
+        ~/.acme.sh/acme.sh --issue -d "$DOMAIN" --standalone --httpport 80 --force 2>/dev/null || {
+            warn "SSL failed — falling back to Direct IP"
+            install_direct_ip; return
+        }
     fi
 
     mkdir -p /etc/ssl/employer-panel
-    ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" --key-file /etc/ssl/employer-panel/key.pem --fullchain-file /etc/ssl/employer-panel/fullchain.pem --reloadcmd "systemctl restart nginx"
+    ~/.acme.sh/acme.sh --install-cert -d "$DOMAIN" \
+        --key-file /etc/ssl/employer-panel/key.pem \
+        --fullchain-file /etc/ssl/employer-panel/fullchain.pem \
+        --reloadcmd "systemctl restart nginx"
     chmod 600 /etc/ssl/employer-panel/key.pem
     chmod 644 /etc/ssl/employer-panel/fullchain.pem
     ok "SSL installed"
@@ -291,7 +313,7 @@ EOF
     systemctl enable $SERVICE_NAME
     systemctl restart $SERVICE_NAME
     (crontab -l 2>/dev/null; echo "0 3 * * * ~/.acme.sh/acme.sh --cron --home ~/.acme.sh >/dev/null 2>&1") | crontab - 2>/dev/null || true
-    sleep 2
+    sleep 3
     systemctl is-active --quiet $SERVICE_NAME && ok "Running" || warn "Check: journalctl -u $SERVICE_NAME -n 20"
 }
 
