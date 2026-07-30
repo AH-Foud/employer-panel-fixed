@@ -57,12 +57,19 @@ prompt_config() {
     done
     SECRET=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "admin")
     SECRET_PATH="/${SECRET}"
-    cat > /tmp/_wc.py << 'PYEOF'
+
+    # Write config using actual UTF-8 Persian text
+    python3 - "$BOT_TOKEN" "$ADMIN_ID" "$SECRET_PATH" << 'PYEOF'
 import sys
 BOT_TOKEN=sys.argv[1]
 ADMIN_ID=sys.argv[2]
 SECRET=sys.argv[3]
-AI_PROMPT=("\u062a\u0648 \u06cc\u0647 \u062f\u0633\u062a\u06cc\u0627\u0631 \u0647\u0648\u0634\u0645\u0646\u062f\u06cc. ","\u0644\u06cc\u0633\u062a SOP\u0647\u0627\u06cc \u062a\u0639\u0631\u06cc\u0641 \u0634\u062f\u0647:\\n{{sops}}\\n\\n","\u067e\u06cc\u0627\u0645 \u06a9\u0627\u0631\u0628\u0631:\\n{{message}}\\n\\n","\u06a9\u062f\u0627\u0645 SOP \u0645\u0646\u0627\u0633\u0628 \u0627\u06cc\u0646 \u0633\u0648\u0627\u0644\u0647\u061f \u0641\u0642\u0637 \u0627\u0633\u0645 \u062f\u0642\u06cc\u0642 SOP \u0631\u0648 \u0628\u0646\u0648\u06cc\u0633. ","\u0627\u06af\u0631 \u0647\u06cc\u0686\u06a9\u062f\u0648\u0645 \u0645\u0646\u0627\u0633\u0628 \u0646\u0628\u0648\u062f\u060c \u0628\u0646\u0648\u06cc\u0633: none")
+AI_PROMPT = (
+    "تو یه دستیار هوشمندی. لیست SOPهای تعریف شده:\n{sops}\n\n"
+    "پیام کاربر:\n{message}\n\n"
+    "کدام SOP مناسب این سواله؟ فقط اسم دقیق SOP رو بنویس. "
+    "اگر هیچکدوم مناسب نبود، بنویس: none"
+)
 cfg=f"""# -*- coding: utf-8 -*-
 BOT_TOKEN = "{BOT_TOKEN}"
 ADMIN_ID = {ADMIN_ID}
@@ -83,8 +90,6 @@ AI_PROMPT = {repr(AI_PROMPT)}
 with open('/opt/employer-panel/config.py','w',encoding='utf-8') as f:
     f.write(cfg)
 PYEOF
-    python3 /tmp/_wc.py "$BOT_TOKEN" "$ADMIN_ID" "$SECRET_PATH"
-    rm -f /tmp/_wc.py
     ok "Config written"
 }
 
